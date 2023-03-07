@@ -4,13 +4,18 @@ import io
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from setting import static_link, api
 
+static_link = static_link
+api = api
 
 def read_data_api(id_sesor, last_date):
     #last_date = datetime.date(2022, 3, 14)
     str_date = last_date.strftime("%Y%m%d") + "/"
-    static_link = "https://portal.smart1.eu/export/data/csv/376/linear/month/detailed/"
-    api = "?apikey=6baa1316e5a78fbde7cec5735834245f"
+    global static_link
+    global api
+    #static_link = "https://portal.smart1.eu/export/data/csv/376/linear/month/detailed/"
+    #api = "your api"
     api_link = static_link + str_date + id_sesor + api
     r = requests.get(api_link)
     # Convert the response to a pandas DataFrame
