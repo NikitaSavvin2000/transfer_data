@@ -1,4 +1,1 @@
-команды
 
-python -m venv venv # creature virtual envairoment
-.\venv\Scripts\Activate.ps1
