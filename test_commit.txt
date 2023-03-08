@@ -2,3 +2,5 @@
 
 python -m venv venv # creature virtual envairoment
 .\venv\Scripts\Activate.ps1
+#Command for acivating venv(virtual envairoment)
+source venv/Scripts/activate 
