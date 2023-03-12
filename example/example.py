@@ -5,7 +5,7 @@ sensors = Sensors(r'Monitor_Data_Model-2.xlsx')
 dict_sensors = sensors.read_sensors()
 
 data = Read(
-    token = '?apikey=6baa1316e5a78fbde7cec5735834245f',
+    token = 'Your token',
     static_link = 'https://portal.smart1.eu/export/data/csv/376/linear/',
     read_interval = 'month'
 )
