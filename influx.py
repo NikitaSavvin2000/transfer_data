@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from influxdb import InfluxDBClient
 import pickle
@@ -6,13 +7,12 @@ from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # You can generate an API token from the "API Tokens Tab" in the UI
-token = "u2z-6PsPSDv002ENSRlUZtxTWl49BWSkD49J8FU0Klx3UcmgB8N5GX8mFPgaWdS3hNqgjNzu75m6K95oWEneqQ=="
 org = "University"
 bucket = "test_db"
 
-with open('dict_sensor.pickle', 'rb') as f:
+'''with open('dict_sensor.pickle', 'rb') as f:
     dict_sensor = pickle.load(f)
-
+'''
 
 def get_last_timestamp(id_sesor):
     table_name = dict_sensor.values(id_sesor)
@@ -49,3 +49,11 @@ def write_to_influxdb(df, table_name):
     # Записываем данные в InfluxDB
     # client.write_points(data)
     return data
+
+def save_dataframe_to_csv(filename, df):
+    name_folder = 'Test result'
+    # Создаем папку result, если её ещё нет
+    if not os.path.exists(name_folder):
+        os.mkdir(name_folder)
+    # Сохраняем DataFrame в CSV файл
+    df.to_csv(f"{name_folder}/{filename}", index=False)
