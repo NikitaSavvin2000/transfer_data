@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import pandas as pd
-from influx import save_dataframe_to_csv
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client import write_api
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 class Read:
@@ -69,9 +71,8 @@ class Read:
             df_general_period = pd.concat([df_general_period, df_sensor], ignore_index=True)
             dict_par = {'month': 'months', 'day': 'days', 'year': 'years'}
             last_date += relativedelta(**{dict_par[self.read_interval]: 1})
-            print(last_date, type(last_date))
-        dict_data_sensor = {name_sensor: df_general_period}
-        return dict_data_sensor
+            #print(last_date, type(last_date))
+        return name_sensor, df_general_period
 
 
 class Write:
@@ -90,12 +91,8 @@ class Write:
     def write_data_sensor(self, dict_data_sensor):
         name_sensor = list(dict_data_sensor.keys())[0]
         df_sensor = list(dict_data_sensor.values())[0]
-        '''
-        save_dataframe_to_csv - заменяем на функцию записи в influxdb где name_sensor - имя таблицы,
-        df_sensor - данные сенсора.
-        save_dataframe_to_csv - временное решение для теста
-        '''
-        save_dataframe_to_csv(name_sensor, df_sensor)
+        return name_sensor, df_sensor
+
 
 
 class Recive:
@@ -135,6 +132,45 @@ class Sensors:
             selected_dict.update(dict(zip(selected_data['Name'], selected_data['SensorId'],)))
 
         return selected_dict
+
+
+class InfluxDB:
+
+    def __init__(self, token, org, url, host, port):
+        self.token = token
+        self.org = org
+        self.url = url
+        self.host = host
+        self.port = port
+        self.client = InfluxDBClient(url=f"http://{self.host}:{self.port}", token=self.token, org=self.org)
+        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+
+    def save_dataframe_to_influx(self, name_sensor, df_sensor):
+        buckets = self.client.buckets_api().find_buckets()
+        buckets = buckets.to_dict()
+        list_buckets = [bucket['name'] for bucket in buckets['buckets']]
+        print(list_buckets)
+        bucket_exists = any(bucket == name_sensor for bucket in list_buckets)
+        org_id = self.client.organizations_api().find_organizations()[0].id
+        if not bucket_exists:
+            self.client.buckets_api().create_bucket(
+                bucket_name=name_sensor,
+                org_id=org_id
+            )
+        df_sensor["Timestamp"] = pd.to_datetime(df_sensor["Timestamp"]).dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        df_sensor["Measurements"] = pd.to_numeric(df_sensor["Measurements"])
+        points = []
+        for _, row in df_sensor.iterrows():
+            point = Point("Measurements").field(
+                "value", row['Measurements']).time(row['Timestamp'],
+                                                   WritePrecision.NS
+                                                   )
+            points.append(point)
+        self.write_api.write(
+            bucket=name_sensor,
+            org=org_id,
+            record=points
+        )
 
 
 '''

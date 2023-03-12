@@ -56,4 +56,4 @@ def save_dataframe_to_csv(filename, df):
     if not os.path.exists(name_folder):
         os.mkdir(name_folder)
     # Сохраняем DataFrame в CSV файл
-    df.to_csv(f"{name_folder}/{filename}", index=False)
+    df.to_csv(f"{name_folder}/{filename}.csv", index=False)
