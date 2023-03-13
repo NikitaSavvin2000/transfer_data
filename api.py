@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
+from typing import re
+
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from influxdb_client import InfluxDBClient, Point, WritePrecision
-from influxdb_client.client import write_api
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 
@@ -47,12 +48,12 @@ class Read:
         df = df.rename(columns={'Value1': 'Measurements'})
         return df
 
-    def general_period(self, name_sensor, sensor_id):
+    def general_period(self, name_sensor, sensor_id, last_date):
         '''
         date_start - date start of measurements.
         Real date_start = '2016-01-01', for example date_start = '2023-01-01'
         '''
-        date_start = '2023-01-01'
+        date_start = '2022-11-01'
         date_start = datetime.strptime(date_start, '%Y-%m-%d')
         # last_date = recive_last_date(table_name)
         '''
@@ -60,9 +61,9 @@ class Read:
         last_date need for definition of the last upload date. 
         It need for definition necessary read interval
         '''
-        # last_date = datetime.strptime(last_date, '%Y-%m-%dT%H:%M:%SZ')
-        last_date = None
-        if last_date is None:
+        if last_date is not None:
+            last_date = datetime.strptime(last_date, '%Y-%m-%dT%H:%M:%SZ')
+        else:
             last_date = date_start
         df_general_period = pd.DataFrame(columns=['Timestamp', 'Measurements'])
         yesterday_date = datetime.today() - timedelta(days=1)
@@ -71,6 +72,7 @@ class Read:
             df_general_period = pd.concat([df_general_period, df_sensor], ignore_index=True)
             dict_par = {'month': 'months', 'day': 'days', 'year': 'years'}
             last_date += relativedelta(**{dict_par[self.read_interval]: 1})
+            df_general_period['Timestamp'] = pd.to_datetime(df_general_period['Timestamp'])
             #print(last_date, type(last_date))
         return name_sensor, df_general_period
 
