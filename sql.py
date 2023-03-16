@@ -12,14 +12,29 @@ class SQLWrite:
 
     def create_connection(self):
         self.conn = self.engine.connect()
-        print('Connection with SQL established')
+        if self.conn is not None:
+            print('Connection with SQL established')
+        else:
+            print('No connection established')
+
+    def commit(self):
+        if self.conn is not None:
+            trans = self.conn.begin()
+            try:
+                trans.commit()
+                print('Changes committed')
+            except:
+                trans.rollback()
+                raise
+        else:
+            print('No connection established')
 
     def write_to_postgresql(self, name_sensor, df_general_period):
 
         create_table_query = f"""
             CREATE TABLE IF NOT EXISTS {name_sensor} (
                 Timestamp TIMESTAMP NOT NULL,
-                Measurements REAL NOT NULL
+                {name_sensor} REAL NOT NULL
             );
         """
         self.conn.execute(text(create_table_query))
@@ -27,7 +42,7 @@ class SQLWrite:
         # Заполняем таблицу значениями из df_general_period
         for index, row in df_general_period.iterrows():
             insert_query = f"""
-                INSERT INTO {name_sensor} (Timestamp, Measurements)
+                INSERT INTO {name_sensor} (Timestamp, {name_sensor})
                 VALUES ('{row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S')}', {row['Measurements']});
             """
             self.conn.execute(text(insert_query))
@@ -39,9 +54,10 @@ class SQLWrite:
         return list(table_names)
 
     def saving_data(self):
-        self.conn.commit()
-        print(100 * '-')
-        print('Up-to-date data has been saved')
+        if self.conn is not None:
+            self.commit()
+        else:
+            print('No connection established')
 
 
     def select_last_date(self, table_name):
