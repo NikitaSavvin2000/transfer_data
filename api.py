@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import re
 
 from dateutil.relativedelta import relativedelta
+from numpy import datetime64, float64
 import pandas as pd
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -36,24 +37,25 @@ class Read:
         self.token = token
         self.static_link = static_link
         self.read_interval = read_interval
-        pass
 
-    def read_data_api(self, sensor_id, last_date):
+    def read_data_api(self, sensor_id, last_date, name_sensor):
+        name_sensor = self.name_to_format(name_sensor)
         #last_date = datetime(2023, 1, 1)  #Нужно получить из записанных ранее данных
         str_date = last_date.strftime("%Y%m%d") + "/"
         # static_link = "https://portal.smart1.eu/export/data/csv/376/linear/month/detailed/"
         api_link = self.static_link + self.read_interval + '/detailed/' + str_date + sensor_id + self.token
         df = pd.read_csv(api_link, sep=';')
         df = df[['Timestamp', 'Value1']]
-        df = df.rename(columns={'Value1': 'Measurements'})
+        df = df.rename(columns={'Value1': name_sensor})
         return df
 
     def general_period(self, name_sensor, sensor_id, last_date):
+        name_sensor = self.name_to_format(name_sensor)
         '''
         date_start - date start of measurements.
         Real date_start = '2016-01-01', for example date_start = '2023-01-01'
-        '''
-        date_start = '2023-03-13'
+        ''' 
+        date_start = '2023-03-17'
         date_start = datetime.strptime(date_start, '%Y-%m-%d')
         # last_date = recive_last_date(table_name)
         '''
@@ -67,17 +69,31 @@ class Read:
             last_date = date_start'''
         if last_date is None: 
             last_date = date_start
-        df_general_period = pd.DataFrame(columns=['Timestamp', 'Measurements'])
+        df_general_period = pd.DataFrame(columns=["Timestamp", name_sensor])
+        df_general_period['Timestamp'] = pd.to_datetime(df_general_period['Timestamp'])
+        df_general_period[name_sensor] = df_general_period[name_sensor].astype(float)
         yesterday_date = datetime.today() - timedelta(days=1)
         while yesterday_date > last_date:
-            df_sensor = self.read_data_api(sensor_id = sensor_id, last_date=last_date) # Реалтзовать в функцию last_date
+            df_sensor = self.read_data_api(sensor_id = sensor_id, last_date=last_date, name_sensor = name_sensor) # Реалтзовать в функцию last_date
             df_general_period = pd.concat([df_general_period, df_sensor], ignore_index=True)
             dict_par = {'month': 'months', 'day': 'days', 'year': 'years'}
             last_date += relativedelta(**{dict_par[self.read_interval]: 1})
             df_general_period['Timestamp'] = pd.to_datetime(df_general_period['Timestamp'])
             #print(last_date, type(last_date))
         return name_sensor, df_general_period
-
+    
+    def name_to_format(self, name):
+        name = ''.join(['_' if not c.isalnum() else c for c in name])
+        name = name.rstrip('_')
+        name = '_'.join([w for w in name.split('_') if w])
+        name = name.lower()
+        return name
+    
+    def read_sensors(self):
+        sensors_link = self.static_link + self.token 
+        print(sensors_link)
+        df = pd.read_csv(sensors_link, sep=';')
+        return df
 
 class Write:
     '''
