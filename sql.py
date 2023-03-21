@@ -1,6 +1,14 @@
+from lib2to3.pytree import Base
 import re
+from matplotlib import table
 from numpy import datetime64, float64
-from sqlalchemy import Float, Integer, String, create_engine, text, MetaData, Table, Column, TIMESTAMP
+from sqlalchemy import Float, Integer, String, create_engine, engine_from_config, text, MetaData, Table, Column, TIMESTAMP
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, Table, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.schema import Table
 
 class SQLWrite:
     def __init__(self, db_host, db_port, db_name, db_user, db_password):
@@ -11,6 +19,10 @@ class SQLWrite:
         self.db_password = db_password
         self.engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
         self.metadata = MetaData(bind=self.engine)
+        self.Base = declarative_base()
+        Session = sessionmaker(bind=self.engine)
+        self.session = Session()
+
 
     def create_connection(self):
         self.conn = self.engine.connect()
@@ -81,9 +93,11 @@ class SQLWrite:
             return
 
     def exists_table(self, table_name):
-        if self.metadata.tables.get(table_name) == True:
+        if self.metadata.tables.get(table_name) is not None:
             return True
-        return False
+        else: 
+            return False
+
 
     '''def create_column(self, table_name, name_column, type_column):
         if not self.exists_table(table_name):
@@ -100,19 +114,57 @@ class SQLWrite:
             extend_existing=True
                     )'''
     def create_column(self, table_name, name_column, type_column):
+        Base = declarative_base()
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+    
         if not self.exists_table(table_name):
             self.create_table(table_name)
-        table = Table(table_name, self.metadata, autoload=self.metadata)
-        columns = [c.name for c in table.columns]
-        if name_column not in columns:
-            column = Column(name_column, type_=type_column, nullable=True)
-            column.create(table)
-        table.metadata.create_all()
+    
+        type_column = dict_sql_types[type_column]
+        print(name_column)
+        print(type_column)
+    
+        new_row = Table(table_name, Base.metadata,
+                    Column(name_column, type_column),
+                    extend_existing=True)
+    
+    # Создаем новую колонку в таблице
+        Base.metadata.create_all(self.engine)
+        self.session.add(new_row)
+    # Commit the changes to save the new row to the database
+        self.session.commit()
+
+    from sqlalchemy import text
+
+    def add_columns_to_existing_table(self, df, table_name):
+        table = Table(table_name, self.metadata, autoload_with=self.engine)
+        with self.engine.begin() as conn:
+            for col_name, col_type in zip(df.columns, df.dtypes):
+                sql_type = dict_sql_types[str(col_type)]
+                if col_name not in table.c:
+                    print(f"Adding column '{col_name}' to table '{table_name}'")  # Add this line
+                    conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN "{col_name}" {sql_type.__visit_name__}'))
+
+    def create_table_with_columns(self, df, table_name):
+        columns = []
+        for col_name, col_type in zip(df.columns, df.dtypes):
+            sql_type = dict_sql_types[str(col_type)]
+            column = Column(col_name, sql_type)
+            columns.append(column)
+
+        table = Table(table_name, self.Base.metadata, *columns, extend_existing=True)
+        self.Base.metadata.create_all(self.engine)
+        self.metadata.create_all()
+        self.session.commit()
+        return table
+
+
 
     def show_col_name(self, table_name):
-        table = Table(table_name, self.metadata, autoload=True)
-        columns_sql = table.columns.keys()
-        return columns_sql
+        table = Table(table_name, self.metadata, autoload=True, autoload_with=self.engine)
+        columns = table.columns
+        return columns
     
     def write_to_table(self, table_name, df_data):
         columns_name = df_data.columns.tolist()
@@ -123,22 +175,25 @@ class SQLWrite:
                 Need to create the list_sql_types dict with types columns in SQL
                     by match of column dstaframe type 
                 '''
-                col_type = str(df_data[name_column].dtypes)
-                type_column = dict_sql_types[col_type] # Need to create
+                type_column = str(df_data[name_column].dtypes)
+                # type_column = dict_sql_types[col_type] # Need to create
+                print(type_column, 'WTB')
                 self.create_column(table_name, name_column, type_column)
         columns_sql = self.show_col_name(table_name)
         set_columns_name = set(columns_name)
         set_columns_sql = set(columns_sql)
         difrent_col_list = list(set_columns_name - set_columns_sql)
-        if difrent_col_list:
+        print(difrent_col_list, "!!!DIFFERENT_LIST!!!")
+        print(set_columns_sql, "!!!SET_COLUMNS_SQL!!!")
+        print(set_columns_name, "!!!SET_COLUMNS_NAME!!!")
+        """ if difrent_col_list:
             for new_col in difrent_col_list:
                 new_col_type = str(df_data[new_col].dtype)
-                type_column = dict_sql_types[new_col_type]
-                self.create_column(table_name, new_col, type_column)
+                self.create_column(table_name, new_col, type_column)"""
         df_data.to_sql(table_name, self.engine, if_exists='append', index=False)
 
     def table_list(self):
-        table_names = self.metadata.tables.keys()
+        table_names = self.engine.table_names()
         return list(table_names)
 
 

@@ -17,8 +17,8 @@ sql_db_password = '1234'
 
 
 
-sensors = Sensors(r"/Users/dmitrii/Desktop/PhD/Python/Script_DB/transfer_data/Monitor_Data_Model-2.xlsx")
-dict_sensors = sensors.read_sensors()
+#sensors = Sensors(r"/Users/dmitrii/Desktop/PhD/Python/Script_DB/transfer_data/Monitor_Data_Model-2.xlsx")
+#dict_sensors = sensors.read_sensors()
 
 data = Read(
     token = "?apikey=6baa1316e5a78fbde7cec5735834245f"
@@ -94,17 +94,28 @@ def result():
         db_password=sql_db_password
     )
     sqlClient.create_connection()
-    df_devices_all, table_name = read_all_sensors(linear_devices)
-    sqlClient.create_table(table_name)
-    for col_name in df_devices_all.columns.tolist():
+    df_devices_all, created_table_name = read_all_sensors(linear_devices)
+    sqlClient.create_table(created_table_name)
+    table_names_list = sqlClient.table_list()
+    print(created_table_name)
+    sqlClient.add_columns_to_existing_table(df_devices_all, created_table_name)
+    """for col_name in df_devices_all.columns.tolist():
+        print(col_name)
         type_column = str(df_devices_all[col_name].dtype)
-        sqlClient.create_column(table_name, col_name, type_column)
-    sqlClient.write_to_table(table_name, df_devices_all)
+        sqlClient.create_column(created_table_name, col_name, type_column)"""
+    
+    # Print all created columns in created_table_name
+    """created_columns = sqlClient.show_col_name(created_table_name)
+    for column in created_columns:
+        print(column.name)
+   
+    sqlClient.write_to_table(created_table_name, df_devices_all)
     sqlClient.saving_data()
-    sqlClient.kill_connection()
+    sqlClient.kill_connection()"""
 
 
 result()
+
 #example = read_all_sensors(linear_devices)
 #print(example.dtypes)
 '''name_sensor = "Grid Feed"
