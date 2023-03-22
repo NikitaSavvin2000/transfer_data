@@ -12,9 +12,9 @@ Data for SQL client bellow
 """
 sql_db_host = 'localhost'
 sql_db_port = 5432
-sql_db_name = 'sensors3'
+sql_db_name = 'sensors2'
 sql_db_user = 'postgres'
-sql_db_password = 'Welcome123'
+sql_db_password = '1234'
 
 # sensors = Sensors(r"/Users/dmitrii/Desktop/PhD/Python/Script_DB/transfer_data/Monitor_Data_Model-2.xlsx")
 # dict_sensors = sensors.read_sensors()
@@ -130,6 +130,6 @@ sqlClient = SQLWrite(
     db_password=sql_db_password
 )
 
-sqlClient.add_custom_columns('table_of_sensors', 'Read_flag')
+"""sqlClient.add_custom_columns('table_of_sensors', 'Read_flag')
 list_flag_sensors = ['buscounter_1447943847']
-sqlClient.update_read_flag(list_flag_sensors)
+sqlClient.update_read_flag(list_flag_sensors)"""

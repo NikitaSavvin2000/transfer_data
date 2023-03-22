@@ -80,6 +80,10 @@ class SQLWrite:
         if table_name not in table_list:
             last_date = None
         else:
+            table = Table(table_name, self.metadata, autoload_with=self.engine)
+            if "timestamp" not in [col.name for col in table.columns]:
+                return None
+        
             query = text(f"SELECT timestamp FROM {table_name} ORDER BY timestamp DESC LIMIT 1")
             result = self.engine.connect().execute(query).fetchone()
             if result is not None:
@@ -88,13 +92,18 @@ class SQLWrite:
                 last_date = None
         return last_date
 
+
     def create_table(self, table_name):
-        if self.exists_table(table_name):
-            table = Table(table_name, self.metadata, autoload_with=None)
+        if not self.exists_table(table_name):
+            table = Table(table_name, self.metadata,
+                        Column('id', Integer, primary_key=True),
+                      # Add more columns if needed
+                        autoload_with=None)
             table.create(self.engine)
             print(f'Table "{table_name}" created')
         else:
             print(f'Table "{table_name}" already exists')
+
 
     def exists_table(self, table_name):
         if self.metadata.tables.get(table_name) is not None:
@@ -118,26 +127,17 @@ class SQLWrite:
             extend_existing=True
                     )'''
     def create_column(self, table_name, name_column, type_column):
-        Base = declarative_base()
-        Session = sessionmaker(bind=self.engine)
-        session = Session()
-    
         if not self.exists_table(table_name):
             self.create_table(table_name)
-    
+
         type_column = dict_sql_types[type_column]
         print(name_column)
         print(type_column)
-    
-        new_row = Table(table_name, Base.metadata,
-                    Column(name_column, type_column),
-                    extend_existing=True)
-    
-    # Создаем новую колонку в таблице
-        Base.metadata.create_all(self.engine)
-        self.session.add(new_row)
-    # Commit the changes to save the new row to the database
-        self.session.commit()
+
+        # Создаем новую колонку в таблице с помощью оператора ALTER TABLE
+        with self.engine.begin() as conn:
+            query = text(f"ALTER TABLE {table_name} ADD COLUMN {name_column} {str(type_column)}")
+            conn.execute(query)
 
     from sqlalchemy import text
 
@@ -159,7 +159,6 @@ class SQLWrite:
                     sql_type = dict_sql_types[str(col_type)]
                     conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{col_name}" {sql_type.__visit_name__}'))
                     print(f"Adding column '{col_name}' to table '{table_name}'")
-        conn.commit()
 
     def add_custom_columns(self, table_name, col_name):
         table_check = Table(table_name, self.metadata, autoload_with=self.engine)
@@ -176,7 +175,6 @@ class SQLWrite:
             with self.engine.begin() as conn:
                 conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{col_name}" {sql_type.__visit_name__}'))
                 print(f"Adding column '{col_name}' to table '{table_name}'")
-        conn.commit()
 
     from sqlalchemy import text
     def update_read_flag(self, sensor_ids):
@@ -184,7 +182,6 @@ class SQLWrite:
         update_stmt = table.update().where(table.c.SensorId.in_(sensor_ids)).values(Read_flag='Y')
         with self.engine.connect() as conn:
             conn.execute(update_stmt)
-            conn.commit()
         print(f'Successful : in values {sensor_ids} added Read flag Y')
     def get_dataframe_from_sql_table(self, table_name):
         # check if the database connection is active
@@ -227,15 +224,34 @@ class SQLWrite:
             self.create_table(table_name)
             for name_column in columns_name:
                 type_column = str(df_data[name_column].dtypes)
-                self.create_column(table_name, df_data)
+                self.create_column(table_name, name_column, type_column)  # Pass the required arguments
         table = Table(table_name, self.metadata, autoload_with=self.engine)
         with self.engine.begin() as conn:
             for index, row in df_data.iterrows():
                 row_data = {col: row[col] for col in df_data.columns}
                 ins = table.insert().values(**row_data)
                 conn.execute(ins)
-        conn.commit()
         print(f"{len(df_data)} rows inserted into '{table_name}'")
+
+    def write_to_table_c(self, table_name, df_data): #кастомная функция
+        columns_name = df_data.columns.tolist()
+        if not self.exists_table(table_name):
+            self.create_table(table_name)
+        table = Table(table_name, self.metadata, autoload_with=self.engine)
+        column_names = [column.name for column in table.columns]
+        for name_column in columns_name:
+            if name_column not in column_names:
+                type_column = str(df_data[name_column].dtypes)
+                print(type_column,'!!!')
+                self.create_column(table_name, name_column, type_column)  # Pass the required arguments
+        table = Table(table_name, self.metadata, autoload_with=self.engine)
+        with self.engine.begin() as conn:
+            for index, row in df_data.iterrows():
+                row_data = {col: row[col] for col in df_data.columns}
+                ins = table.insert().values(**row_data)
+                conn.execute(ins)
+        print(f"{len(df_data)} rows inserted into '{table_name}'")
+
 
     def table_list(self):
         with self.engine.connect() as conn:
@@ -251,12 +267,10 @@ class SQLWrite:
         print('SQL connection killed')
 
 dict_sql_types = {
-    'int64': Integer,
-    'float64': Float,
-    'bool': Boolean,
-    'datetime64[ns]': DateTime,
-    'timedelta[ns]': Interval,
-    'object': Text
+    "object": String,
+    "int64": Integer,
+    "float64": Float,
+    "datetime64[ns]": DateTime,
 }
 
 chose_sql_types = {
